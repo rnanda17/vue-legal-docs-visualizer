@@ -65,6 +65,12 @@ export interface GroupingConfig {
   field?: string
   /** Custom grouping, when a field is not enough. */
   fn?: (node: GraphNode) => string
+  /**
+   * The fewest members a group needs to be drawn as a cluster box with its
+   * title. Default 2 (a lone member is drawn as a plain node); 1 boxes every
+   * group, so each one looks the same whatever its size.
+   */
+  minClusterSize?: number
 }
 
 export interface ColumnConfig {

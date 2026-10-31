@@ -618,8 +618,11 @@ const initGraph = async () => {
     return Math.min(size, maxSize)
   }
 
-  // Which clusters get wrapped in a compound node (size >= 2, not worth it for a singleton),
+  // Which clusters get wrapped in a compound node (at least grouping.minClusterSize members,
+  // default 2: not worth it for a singleton unless the host asks for every group to be boxed),
   // and which of those start collapsed depending on the overall graph size and their own size.
+  // A cluster is never collapsed below two members: that would hide its only document.
+  const minClusterSize = Math.max(1, effectiveConfig.value.grouping.minClusterSize ?? 2)
   const totalDocCount = graphNodes.value.length
   const collapseThreshold = getClusterCollapseThreshold(totalDocCount)
   const clusterIdsToCollapse = new Set<string>()
@@ -634,7 +637,7 @@ const initGraph = async () => {
   })
 
   const clusterParentNodes = Array.from(docsByCluster.entries())
-    .filter(([, docsInCluster]) => docsInCluster.length >= 2)
+    .filter(([, docsInCluster]) => docsInCluster.length >= minClusterSize)
     .map(([clusterId, docsInCluster]) => ({
       data: {
         id: clusterId,
@@ -656,7 +659,7 @@ const initGraph = async () => {
       ? metricToSize(relevance as number, range as { min: number; max: number })
       : calculateNodeSize(degree)
     const clusterId = getClusterKey(doc)
-    const isGrouped = Boolean(clusterId && (docsByCluster.get(clusterId)?.length || 0) >= 2)
+    const isGrouped = Boolean(clusterId && (docsByCluster.get(clusterId)?.length || 0) >= minClusterSize)
 
     let color: string
     if (useRelevance) {
