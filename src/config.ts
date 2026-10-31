@@ -71,6 +71,13 @@ export interface GroupingConfig {
    * group, so each one looks the same whatever its size.
    */
   minClusterSize?: number
+  /**
+   * After the layout, line the top-level clusters (and loose nodes) up in rows
+   * when the layout left any of them overlapping, measured with their titles,
+   * so no box or title covers another. A cluster's inside is left as laid out.
+   * Default off.
+   */
+  packClusters?: boolean
 }
 
 export interface ColumnConfig {

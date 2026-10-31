@@ -1069,10 +1069,49 @@ const initGraph = async () => {
   // costly force iterations already ran (verified by reading its source).
   const getLayoutEles = () => cy!.elements().filter(ele => ele.style('display') !== 'none')
 
+  // grouping.packClusters: fcose does not separate disconnected compound nodes
+  // (that needs cytoscape-layout-utilities), so clusters with no edges between
+  // them can land on each other. When any top-level box overlaps another (with
+  // its title), the boxes are lined up in rows in reading order, each moved
+  // whole, and the view is fitted again.
+  const packTopLevel = () => {
+    if (!cy || !effectiveConfig.value.grouping.packClusters) return
+    const tops = cy.nodes().filter((n) => n.visible() && n.parent().length === 0)
+    if (tops.length < 2) return
+    const boxes = tops.map((n) => ({ n: n as unknown as cytoscape.NodeSingular, bb: n.boundingBox({ includeLabels: true } as any) }))
+    const overlap = boxes.some((a, i) =>
+      boxes.some((b, j) => j > i && a.bb.x1 < b.bb.x2 && b.bb.x1 < a.bb.x2 && a.bb.y1 < b.bb.y2 && b.bb.y1 < a.bb.y2),
+    )
+    if (!overlap) return
+    const gap = 40
+    const area = boxes.reduce((sum, b) => sum + b.bb.w * b.bb.h, 0)
+    const rowWidth = Math.max(Math.max(...boxes.map((b) => b.bb.w)), Math.sqrt(area) * 1.6)
+    const order = [...boxes].sort((a, b) => a.bb.y1 - b.bb.y1 || a.bb.x1 - b.bb.x1)
+    let x = 0
+    let y = 0
+    let rowHeight = 0
+    for (const { n, bb } of order) {
+      if (x > 0 && x + bb.w > rowWidth) {
+        x = 0
+        y += rowHeight + gap
+        rowHeight = 0
+      }
+      const dx = x - bb.x1
+      const dy = y - bb.y1
+      // a compound moves with its leaf members; a plain node moves itself
+      const movers = n.isParent() ? n.descendants().filter((d) => !(d as cytoscape.NodeSingular).isParent()) : n
+      movers.positions((m: any) => ({ x: m.position('x') + dx, y: m.position('y') + dy }))
+      x += bb.w + gap
+      rowHeight = Math.max(rowHeight, bb.h)
+    }
+    cy.fit(undefined, 30)
+  }
+
   // Run the real layout once, over just the resulting (much smaller) visible graph.
   // eles isn't in @types/cytoscape's LayoutOptions even though the layouts themselves
   // support it (verified directly in cytoscape-fcose's source) - cast to work around that.
   cy.layout({ ...layoutConfig, eles: getLayoutEles() } as any).run()
+  packTopLevel()
 
   // Node labels only render once zoomed in far enough for them to be readable:
   // below the threshold the labels (not the nodes) are what collide. A class on
@@ -1099,7 +1138,9 @@ const initGraph = async () => {
   cy.on('expandcollapse.aftercollapse expandcollapse.afterexpand', () => {
     updateClusterEdgeVisibility()
     updateHasCollapsedClusters()
-    cy?.layout({ ...relayoutConfig, eles: getLayoutEles() } as any).run()
+    const relayout = cy?.layout({ ...relayoutConfig, eles: getLayoutEles() } as any)
+    relayout?.one('layoutstop', packTopLevel)
+    relayout?.run()
   })
 
   // Cluster interaction now happens entirely through the hover popup (Expand/Collapse +
