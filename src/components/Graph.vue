@@ -529,6 +529,13 @@ const relationColor = (type?: string): string => {
   return (type && types[type]?.color) || '#95a5a6'
 }
 
+// Arrowheads per relation type, from `edges.types[type].direction`, as the
+// legend declares it: forward (the default), backward, bidirectional, none.
+const relationDirection = (type?: string): string => {
+  const types = effectiveConfig.value.edges.types ?? {}
+  return (type && types[type]?.direction) || 'forward'
+}
+
 const initGraph = async () => {
   if (!cyContainer.value || graphNodes.value.length === 0) {
     isLoading.value = false
@@ -725,7 +732,8 @@ const initGraph = async () => {
               ...(edge.relation_type
                 ? {
                     relation_type: edge.relation_type,
-                    relationColor: relationColor(edge.relation_type)
+                    relationColor: relationColor(edge.relation_type),
+                    relationDirection: relationDirection(edge.relation_type)
                   }
                 : {})
             }
@@ -915,6 +923,28 @@ const initGraph = async () => {
           'text-rotation': 'autorotate',
           'text-margin-y': -6,
           'curve-style': 'bezier'
+        }
+      },
+      {
+        // A symmetric relation type: an arrowhead at both ends.
+        selector: 'edge[relationDirection = "bidirectional"]',
+        style: {
+          'source-arrow-shape': 'triangle',
+          'source-arrow-color': 'data(relationColor)'
+        }
+      },
+      {
+        selector: 'edge[relationDirection = "backward"]',
+        style: {
+          'source-arrow-shape': 'triangle',
+          'source-arrow-color': 'data(relationColor)',
+          'target-arrow-shape': 'none'
+        }
+      },
+      {
+        selector: 'edge[relationDirection = "none"]',
+        style: {
+          'target-arrow-shape': 'none'
         }
       },
       {
